@@ -1,0 +1,27 @@
+# 段階5: Web画面と自動仕分けを、2つのコンテナでまとめて動かす
+# 実行: docker compose up -d --build
+# 前提: 先にPCで python -m app.auth を実行し、data/token.json を作っておく
+services:
+  web:
+    build: .
+    env_file: .env
+    environment:
+      OLLAMA_URL: http://host.docker.internal:11434
+    volumes:
+      - ./data:/app/data
+      - ./rules.yaml:/app/rules.yaml:ro
+    ports:
+      - "127.0.0.1:8000:8000"   # 自分のPCからだけ見られる
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: ["python", "-m", "app.watch"]
+    env_file: .env
+    environment:
+      # コンテナの中の localhost はコンテナ自身を指すので、PC（ホスト）のOllamaを指定し直す
+      OLLAMA_URL: http://host.docker.internal:11434
+    volumes:
+      - ./data:/app/data
+      - ./rules.yaml:/app/rules.yaml:ro
+    restart: unless-stopped
