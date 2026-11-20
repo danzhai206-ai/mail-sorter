@@ -1,0 +1,33 @@
+# 仕分けルール
+# 上から順に見て、最初に一致したルールの重要度を使います。
+# どのルールにも一致しなければ AI が判定します（USE_AI=false なら default_level）。
+#
+# 重要度: high（高） / medium（中） / low（低） / junk（不要）
+# 使える条件:
+#   from_contains:        差出人に含まれる文字（どれか1つ）
+#   subject_contains:     件名に含まれる文字（どれか1つ）
+#   body_contains:        件名か本文に含まれる文字（どれか1つ）
+#   gmail_label:          Gmailが付けたラベル（CATEGORY_PROMOTIONS, CATEGORY_SOCIAL など）
+#   has_list_unsubscribe: メルマガ用の「配信停止」ヘッダーがあるか（true / false）
+
+default_level: medium
+
+# AIに伝えたい、自分についての情報（判定の参考にされます）
+ai_instructions: |
+  - 私は個人で Gmail を使っています。
+  - 自分あての個別の連絡、支払い・契約・期限のある手続きは重要です。
+  - 広告やキャンペーンのお知らせは不要です。
+
+rules:
+  # ここに「この人からのメールは必ず重要」を追加すると便利です
+  # - name: 家族
+  #   level: high
+  #   from_contains: ["family@example.com"]
+
+  - name: Gmailのプロモーション分類
+    level: junk
+    gmail_label: CATEGORY_PROMOTIONS
+
+  - name: SNSの通知
+    level: low
+    gmail_label: CATEGORY_SOCIAL
