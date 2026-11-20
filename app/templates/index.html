@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>メール仕分け</title>
+<style>
+  :root { --bg:#f7f7f8; --card:#fff; --text:#1d1d1f; --muted:#6b6b73; --line:#e3e3e8;
+          --high:#d93025; --medium:#e8a400; --low:#5f8dd3; --junk:#9aa0a6; --accent:#1a73e8; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#16161a; --card:#202026; --text:#ececf1; --muted:#9a9aa6; --line:#33333b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, "Hiragino Sans", "Yu Gothic UI", sans-serif;
+         background:var(--bg); color:var(--text); }
+  main { max-width: 980px; margin: 0 auto; padding: 24px 16px; }
+  header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; }
+  h1 { font-size: 22px; margin: 0; }
+  .notice, .warn { padding:10px 14px; border-radius:8px; margin:16px 0 0; font-size:14px; }
+  .notice { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .warn { background: color-mix(in srgb, var(--medium) 18%, transparent); }
+  nav { display:flex; flex-wrap:wrap; gap:8px; margin:20px 0 12px; }
+  nav a { text-decoration:none; color:var(--text); padding:6px 12px; border:1px solid var(--line);
+          border-radius:999px; font-size:14px; background:var(--card); }
+  nav a.on { border-color: var(--accent); color: var(--accent); font-weight:600; }
+  button { font: inherit; cursor:pointer; }
+  .run { background:var(--accent); color:#fff; border:0; padding:8px 16px; border-radius:8px; }
+  ul { list-style:none; padding:0; margin:0; }
+  li { background:var(--card); border:1px solid var(--line); border-left:4px solid var(--junk);
+       border-radius:8px; padding:12px 14px; margin-bottom:8px; }
+  li.high { border-left-color: var(--high); } li.medium { border-left-color: var(--medium); }
+  li.low { border-left-color: var(--low); }
+  .row { display:flex; gap:12px; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; }
+  .subject { font-weight:600; overflow-wrap:anywhere; }
+  .meta, .reason { color:var(--muted); font-size:13px; margin-top:4px; overflow-wrap:anywhere; }
+  select { font:inherit; padding:4px 6px; border-radius:6px; border:1px solid var(--line);
+           background:var(--card); color:var(--text); }
+  .empty { color:var(--muted); padding:32px 0; text-align:center; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>メール仕分け</h1>
+    <form method="post" action="/run"><button class="run">今すぐ仕分け</button></form>
+  </header>
+
+  {% if dry_run %}<p class="warn">お試しモード: Gmailは変更していません（.env の DRY_RUN または GMAIL_READONLY が true）。ラベルを付けるには両方を false にしてください。</p>{% endif %}
+  {% if notice %}<p class="notice">{{ notice }}</p>{% endif %}
+
+  <nav>
+    <a href="/" class="{{ 'on' if not current }}">すべて</a>
+    {% for l in levels %}
+      <a href="/?level={{ l }}" class="{{ 'on' if current == l }}">{{ level_names[l] }}（{{ counts.get(l, 0) }}）</a>
+    {% endfor %}
+  </nav>
+
+  {% if messages %}
+  <ul>
+    {% for m in messages %}
+    <li class="{{ m['level'] }}">
+      <div class="row">
+        <div>
+          <div class="subject">{{ m['subject'] }}</div>
+          <div class="meta">{{ m['sender'] }} ・ {{ m['received_at'] }}</div>
+          <div class="reason">判定: {{ {'rule':'ルール','ai':'AI','default':'既定値','manual':'手動'}[m['source']] }} — {{ m['reason'] }}</div>
+        </div>
+        <form method="post" action="/messages/{{ m['id'] }}/level">
+          <select name="level" onchange="this.form.submit()" aria-label="重要度を変更">
+            {% for l in levels %}<option value="{{ l }}" {{ 'selected' if l == m['level'] }}>{{ level_names[l] }}</option>{% endfor %}
+          </select>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty">まだ仕分けしたメールはありません。「今すぐ仕分け」を押してください。</p>
+  {% endif %}
+</main>
+</body>
+</html>
