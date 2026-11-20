@@ -1,0 +1,11 @@
+# 秘密情報（絶対にGitに入れない）
+.env
+data/
+credentials.json
+token.json
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
