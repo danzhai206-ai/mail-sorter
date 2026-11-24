@@ -22,7 +22,7 @@ Gmail の受信メールを **高 / 中 / 低 / 不要** の4段階に自動で�
 flowchart LR
     Gmail[(Gmail)] -- "① 取得 (Gmail API / OAuth)" --> Sorter
     subgraph PC["自分の PC"]
-        Sorter["sorter.py<br/>仕分けの本体"] -- "② ルール判定" --> Rules["rules.py<br/>rules.yaml"]
+        Sorter["sorter.py<br/>仕分けの本体"] -- "② ルール判定" --> Rules["rules.py<br/>DBのルール"]
         Sorter -- "③ AI 判定 (HTTP)" --> Ollama["Ollama<br/>Qwen3 8B (GPU)"]
         Sorter -- "⑤ 記録" --> DB[(SQLite)]
         Web["web.py<br/>FastAPI"] -- 一覧・修正 --> DB
@@ -97,7 +97,17 @@ python -m pytest                         # テスト
 | `AI_BODY_CHARS` | `4000` | AI に渡す本文の最大文字数（`0` なら件名と差出人だけ） |
 | `ARCHIVE_JUNK` | `false` | 「不要」を受信トレイから外す（削除はしない） |
 
-判定のルールと、AI に伝える自分の情報は [rules.yaml](rules.yaml) に書きます。
+仕分けルールは DB に保存され、API で追加・変更・削除できます（初回起動時に [rules.yaml](rules.yaml) の内容を取り込みます）。既定の重要度と、AI に伝える自分の情報は rules.yaml に書きます。
+
+| メソッド | パス | 内容 |
+|---|---|---|
+| `GET` | `/api/rules` | ルールの一覧（判定する順番） |
+| `GET` | `/api/rules/{id}` | ルールを1件取得 |
+| `POST` | `/api/rules` | ルールを追加（201） |
+| `PUT` | `/api/rules/{id}` | ルールを丸ごと置き換え |
+| `DELETE` | `/api/rules/{id}` | ルールを削除（204） |
+
+サーバー起動中に http://127.0.0.1:8000/docs を開くと、ブラウザから API を試せます。
 
 ### 常駐させる
 
@@ -114,8 +124,9 @@ app/
   sorter.py          仕分けの本体（取得 → 判定 → ラベル → 記録）
   gmail_client.py    Gmail API と OAuth
   rules.py           ルールによる判定
+  schemas.py         API の入力チェック（Pydantic）
   ollama_classifier.py / ai_classifier.py   AI による判定（Ollama / Claude）
-  db.py              SQLite
+  db.py              SQLite（判定結果・ルール）
   web.py, templates/ Web 画面
   watch.py           常駐実行
   demo.py            体験版

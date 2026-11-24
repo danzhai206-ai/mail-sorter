@@ -10,12 +10,13 @@ import logging
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi import FastAPI, Form, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from . import config, db, sorter
 from .models import LEVEL_NAMES, LEVELS
+from .schemas import RuleIn, RuleOut
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -82,3 +83,46 @@ def api_messages(level: str | None = None, limit: int = 100):
 def health():
     """サーバーが動いているかの確認用（段階6で監視に使う）。"""
     return {"status": "ok"}
+
+
+# ---------- ルールのAPI（CRUD: 作成 Create / 読む Read / 更新 Update / 削除 Delete） ----------
+
+def _rule_or_404(rule_id: int) -> dict:
+    rule = db.get_rule(rule_id)
+    if rule is None:
+        raise HTTPException(404, "ルールが見つかりません")
+    return rule
+
+
+@app.get("/api/rules", response_model=list[RuleOut])
+def api_list_rules():
+    """ルールの一覧（判定する順番に並ぶ）。"""
+    return db.list_rules()
+
+
+@app.get("/api/rules/{rule_id}", response_model=RuleOut)
+def api_get_rule(rule_id: int):
+    return _rule_or_404(rule_id)
+
+
+@app.post("/api/rules", response_model=RuleOut, status_code=201)
+def api_create_rule(body: RuleIn):
+    """ルールを追加する。成功すると 201（作成した）を返す。"""
+    return db.create_rule(body.name, body.level, body.conditions(), body.position, body.enabled)
+
+
+@app.put("/api/rules/{rule_id}", response_model=RuleOut)
+def api_update_rule(rule_id: int, body: RuleIn):
+    """ルールを丸ごと置き換える。"""
+    rule = db.update_rule(rule_id, body.name, body.level, body.conditions(), body.position, body.enabled)
+    if rule is None:
+        raise HTTPException(404, "ルールが見つかりません")
+    return rule
+
+
+@app.delete("/api/rules/{rule_id}", status_code=204)
+def api_delete_rule(rule_id: int):
+    """ルールを削除する。成功すると 204（中身なしで成功）を返す。"""
+    if not db.delete_rule(rule_id):
+        raise HTTPException(404, "ルールが見つかりません")
+    return Response(status_code=204)

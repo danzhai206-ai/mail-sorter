@@ -1,10 +1,31 @@
 """ルールによる判定（AIを使わない、速くて無料の判定）。
 
-rules.yaml の rules を上から順に見て、最初に一致したルールの重要度を使います。
+ルールはDBの rules テーブルに保存されています（初回起動時に rules.yaml から取り込み）。
+並び順（position）の小さい順に見て、最初に一致したルールの重要度を使います。
 1つのルールに条件が複数あるときは「すべて満たす」と一致（AND）。
 条件の中のリストは「どれか1つ含む」と一致（OR）。大文字小文字は区別しません。
 """
 from .models import LEVELS, Decision, Email
+
+# ルールで使える条件の名前。DB保存・API・判定のすべてでこの一覧を使う
+CONDITION_KEYS = ("from_contains", "subject_contains", "body_contains", "gmail_label", "has_list_unsubscribe")
+
+
+def normalize_conditions(rule: dict) -> dict:
+    """ルールから条件だけを取り出し、形をそろえる（文字1つ → リストにする、空は捨てる）。"""
+    conditions = {}
+    for key in CONDITION_KEYS:
+        value = rule.get(key)
+        if value is None:
+            continue
+        if key == "has_list_unsubscribe":
+            conditions[key] = bool(value)
+            continue
+        words = value if isinstance(value, list) else [value]
+        words = [str(w) for w in words if str(w).strip()]  # 空文字は「全部に一致」してしまうので捨てる
+        if words:
+            conditions[key] = words
+    return conditions
 
 
 def _contains_any(text: str, words: list[str]) -> bool:

@@ -59,7 +59,8 @@ def run_once(gmail=None, ai=None) -> list[dict]:
     from .gmail_client import GmailClient  # Gmail不要なテストで読み込まずに済むようここで読む
 
     db.init_db()
-    rules_config = config.load_rules()
+    rules_config = config.load_rules()  # 既定値・AIへの指示は rules.yaml から
+    rules_config["rules"] = db.list_rules(enabled_only=True)  # ルール本体はDBから
     gmail = gmail or GmailClient()
     if ai is None and config.USE_AI:
         ai = make_classifier(rules_config.get("ai_instructions", ""))

@@ -177,3 +177,47 @@ def test_run_once_dry_run_and_web():
 
     assert client.post("/messages/a1/level", data={"level": "bad"}).status_code == 400
     assert client.get("/health").json() == {"status": "ok"}
+
+
+def test_rules_imported_from_yaml_only_once():
+    db.init_db()
+    names = [r["name"] for r in db.list_rules()]
+    assert "Gmailのプロモーション分類" in names           # rules.yaml の中身が入っている
+    assert db.import_rules_once([{"name": "x", "level": "high", "from_contains": ["x"]}]) == 0  # 2回目は取り込まない
+    assert db.list_rules()[0]["gmail_label"] == ["CATEGORY_PROMOTIONS"]  # 文字1つはリストにそろう
+
+
+def test_rules_api_crud():
+    from app.web import app
+    client = TestClient(app)
+
+    # 作成: 201 が返り、番号（id）が振られる
+    r = client.post("/api/rules", json={"name": "上司", "level": "high", "from_contains": ["boss@work.example"]})
+    assert r.status_code == 201
+    rule = r.json()
+    assert rule["id"] > 0 and rule["position"] == max(x["position"] for x in db.list_rules())
+
+    # 作ったルールで実際に仕分けされる
+    boss = make_email(id="b1", sender="Boss <boss@work.example>", subject="明日の会議")
+    assert sorter.run_once(gmail=FakeGmail([boss]), ai=FakeAI()) == [{"id": "b1", "subject": "明日の会議", "level": "high"}]
+
+    # 読む
+    assert client.get(f"/api/rules/{rule['id']}").json()["name"] == "上司"
+    assert any(x["id"] == rule["id"] for x in client.get("/api/rules").json())
+
+    # 更新: 丸ごと置き換え。position を省略すると順番は変わらない
+    r = client.put(f"/api/rules/{rule['id']}", json={"name": "上司", "level": "medium", "subject_contains": ["会議"]})
+    assert r.status_code == 200
+    updated = r.json()
+    assert updated["level"] == "medium" and updated["from_contains"] is None and updated["position"] == rule["position"]
+
+    # 入力チェック: 条件なし・不正な重要度・空文字は 422
+    assert client.post("/api/rules", json={"name": "条件なし", "level": "high"}).status_code == 422
+    assert client.post("/api/rules", json={"name": "x", "level": "urgent", "from_contains": ["a"]}).status_code == 422
+    assert client.post("/api/rules", json={"name": "x", "level": "high", "from_contains": [""]}).status_code == 422
+
+    # 削除: 204。もう一度消そうとすると 404
+    assert client.delete(f"/api/rules/{rule['id']}").status_code == 204
+    assert client.delete(f"/api/rules/{rule['id']}").status_code == 404
+    assert client.get(f"/api/rules/{rule['id']}").status_code == 404
+    assert client.put("/api/rules/99999", json={"name": "x", "level": "high", "from_contains": ["a"]}).status_code == 404
