@@ -109,6 +109,15 @@ python -m pytest                         # テスト
 
 サーバー起動中に http://127.0.0.1:8000/docs を開くと、ブラウザから API を試せます。
 
+### Web 画面を開く
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start_web.ps1   # 裏で起動し、準備ができたら /docs を開く
+powershell -ExecutionPolicy Bypass -File scripts\stop_web.ps1    # 止める
+```
+
+すでに動いていれば起動はせず、ブラウザを開くだけです。サーバーの記録は `data\web.log` に残ります。
+
 ### 常駐させる
 
 ```powershell
